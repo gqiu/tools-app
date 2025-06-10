@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tools API</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .layout {
+            display: flex;
+            min-height: 100vh;
+        }
+        .sidebar {
+            width: 250px;
+            background: #f5f5f5;
+            padding: 20px;
+            border-right: 1px solid #ddd;
+        }
+        .sidebar h3 {
+            margin-top: 0;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #ddd;
+        }
+        .sidebar ul {
+            list-style: none;
+            padding: 0;
+        }
+        .sidebar li {
+            padding: 8px 0;
+            cursor: pointer;
+        }
+        .sidebar li:hover {
+            color: #007bff;
+        }
+        .main-content {
+            flex: 1;
+            padding: 20px;
+        }
+        .tool-container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        .input-section, .output-section {
+            margin-bottom: 20px;
+        }
+        textarea {
+            width: 100%;
+            min-height: 200px;
+            margin: 10px 0;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin: 10px 0;
+            flex-wrap: wrap;
+        }
+        .button {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .primary {
+            background: #007bff;
+            color: white;
+        }
+        .secondary {
+            background: #6c757d;
+            color: white;
+        }
+        .auto-execute {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: 10px 0;
+        }
+        .active-tool {
+            color: #007bff;
+            font-weight: bold;
+        }
+        .toast {
+            position: fixed;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            padding: 12px 24px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            border-radius: 4px;
+            font-size: 14px;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease-in-out;
+            z-index: 1000;
+        }
+        .toast.show {
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+    <div class="layout">
+        <aside class="sidebar">
+            <h3>🛠️ Tools List</h3>
+            <ul id="toolList">
+                <li data-tool="quote" class="active-tool">Add Quotes</li>
+                <li data-tool="unquote">Remove Quotes</li>
+                <li data-tool="remove_spaces">Remove Extra Spaces</li>
+                <li data-tool="whitespace">Remove All Whitespace</li>
+                <li data-tool="base64_encode">Base64 Encode</li>
+                <li data-tool="base64_decode">Base64 Decode</li>
+                <li data-tool="url_encode">URL Encode</li>
+                <li data-tool="url_decode">URL Decode</li>
+                <li data-tool="timestamp_to_mst">Timestamp to MST</li>
+                <li data-tool="mst_to_timestamp">MST to Timestamp</li>
+            </ul>
+        </aside>
+
+        <main class="main-content">
+            <div class="tool-container">
+                <div class="input-section">
+                    <h2 id="toolTitle">Add Quotes</h2>
+                    <textarea id="input" placeholder="Enter text here..."></textarea>
+                    <div class="auto-execute">
+                        <input type="checkbox" id="autoExecute">
+                        <label for="autoExecute">Auto Execute</label>
+                    </div>
+                    <div class="controls" id="actionButtons">
+                        <button class="button primary" onclick="execute('quote')">Add Quotes</button>
+                    </div>
+                </div>
+
+                <div class="output-section">
+                    <textarea id="output" readonly></textarea>
+                    <div class="controls">
+                        <button class="button secondary" onclick="copyToClipboard()">Copy to Clipboard</button>
+                        <button class="button secondary" onclick="downloadResult()">Download Result</button>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div id="toast" class="toast"></div>
+
+    <script>
+        const tools = {
+            'quote': {
+                title: 'Add Quotes',
+                actions: [
+                    { name: 'Add Quotes', endpoint: 'quote' }
+                ]
+            },
+            'unquote': {
+                title: 'Remove Quotes',
+                actions: [
+                    { name: 'Remove Quotes', endpoint: 'unquote' }
+                ]
+            },
+            'remove_spaces': {
+                title: 'Remove Extra Spaces',
+                actions: [
+                    { name: 'Remove Extra Spaces', endpoint: 'remove_extra_spaces' }
+                ]
+            },
+            'whitespace': {
+                title: 'Remove All Whitespace',
+                actions: [
+                    { name: 'Remove All Whitespace', endpoint: 'remove_whitespace' }
+                ]
+            },
+            'base64_encode': {
+                title: 'Base64 Encode',
+                actions: [
+                    { name: 'Encode', endpoint: 'base64_encode' }
+                ]
+            },
+            'base64_decode': {
+                title: 'Base64 Decode',
+                actions: [
+                    { name: 'Decode', endpoint: 'base64_decode' }
+                ]
+            },
+            'url_encode': {
+                title: 'URL Encode',
+                actions: [
+                    { name: 'Encode', endpoint: 'url_encode' }
+                ]
+            },
+            'url_decode': {
+                title: 'URL Decode',
+                actions: [
+                    { name: 'Decode', endpoint: 'url_decode' }
+                ]
+            },
+            'timestamp_to_mst': {
+                title: 'Timestamp to MST',
+                actions: [
+                    { name: 'Convert', endpoint: 'timestamp_to_mst' }
+                ]
+            },
+            'mst_to_timestamp': {
+                title: 'MST to Timestamp',
+                actions: [
+                    { name: 'Convert', endpoint: 'mst_to_timestamp' }
+                ]
+            }
+        };
+
+        let currentTool = 'quote';
+        let toastTimeout;
+
+        function showToast(message, duration = 2000) {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.classList.add('show');
+            
+            if (toastTimeout) {
+                clearTimeout(toastTimeout);
+            }
+            
+            toastTimeout = setTimeout(() => {
+                toast.classList.remove('show');
+            }, duration);
+        }
+
+        document.getElementById('toolList').addEventListener('click', (e) => {
+            const tool = e.target.dataset.tool;
+            if (tool) {
+                switchTool(tool);
+            }
+        });
+
+        document.getElementById('input').addEventListener('input', () => {
+            if (document.getElementById('autoExecute').checked) {
+                execute(tools[currentTool].actions[0].endpoint);
+            }
+        });
+
+        function switchTool(tool) {
+            currentTool = tool;
+            document.getElementById('toolTitle').textContent = tools[tool].title;
+            
+            // Update active tool in sidebar
+            document.querySelectorAll('#toolList li').forEach(li => {
+                li.classList.toggle('active-tool', li.dataset.tool === tool);
+            });
+
+            // Update action buttons
+            const actionButtons = document.getElementById('actionButtons');
+            actionButtons.innerHTML = tools[tool].actions.map(action => 
+                `<button class="button primary" onclick="execute('${action.endpoint}')">${action.name}</button>`
+            ).join('');
+
+            // Clear input/output
+            document.getElementById('input').value = '';
+            document.getElementById('output').value = '';
+        }
+
+        async function execute(endpoint) {
+            const input = document.getElementById('input').value;
+            try {
+                const response = await fetch(`/api/${endpoint}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ text: input }),
+                });
+                
+                const data = await response.json();
+                document.getElementById('output').value = data.result;
+            } catch (error) {
+                console.error('Error:', error);
+                showToast('API call failed. Please check if the service is running.');
+            }
+        }
+
+        function copyToClipboard() {
+            const output = document.getElementById('output');
+            output.select();
+            document.execCommand('copy');
+            showToast('Text copied');
+        }
+
+        function downloadResult() {
+            const output = document.getElementById('output').value;
+            const blob = new Blob([output], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'result.txt';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showToast('File downloaded');
+        }
+
+        // Initialize with first tool
+        switchTool('quote');
+    </script>
+</body>
+</html>
