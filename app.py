@@ -3,6 +3,10 @@ from flask_cors import CORS
 import base64
 import urllib.parse
 import time
+from deepResearch import DeepResearchAPI
+
+# Initialize DeepResearch API client
+deep_research_api = DeepResearchAPI(base_url="https://deep-search.qiulanfang.uk")
 
 app = Flask(__name__)
 CORS(app)
@@ -98,6 +102,42 @@ def mst_to_timestamp():
         return jsonify({'result': result})
     except:
         return jsonify({'result': 'Invalid datetime format (Use: YYYY-MM-DD HH:MM:SS)'})
+
+@app.route('/api/deep_research', methods=['POST'])
+def deep_research():
+    try:
+        # Get required parameters
+        query = request.json.get('query')
+        provider = request.json.get('provider', 'google')
+        thinking_model = request.json.get('thinkingModel', 'gemini-2.0-flash-thinking-exp')
+        task_model = request.json.get('taskModel', 'gemini-2.0-flash-exp')
+        search_provider = request.json.get('searchProvider', 'model')
+        
+        # Get optional parameters
+        language = request.json.get('language')
+        max_result = request.json.get('maxResult')
+        enable_citation_image = request.json.get('enableCitationImage')
+        enable_references = request.json.get('enableReferences')
+        
+        if not query:
+            return jsonify({'error': 'Query parameter is required'}), 400
+            
+        # Perform the search
+        result = deep_research_api.search(
+            query=query,
+            provider=provider,
+            thinking_model=thinking_model,
+            task_model=task_model,
+            search_provider=search_provider,
+            language=language,
+            max_result=max_result,
+            enable_citation_image=enable_citation_image,
+            enable_references=enable_references
+        )
+        
+        return jsonify({'result': result})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)

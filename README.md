@@ -6,14 +6,11 @@
 
 ## ✨ 功能列表
 
-- `quote string` : quote string, should excape original `"` and `\`.
-- `unquote string`: unquot string, should unescape orignal `"` and `\`.
+- `quote` / `unquote`: quote / unquot string
 - `remove_extra_spaces`: renmove extra_spaces
 - `remove_whitespace`: remove whitespaces
-- `base64_encode`: Base64 encode a string
-- `base64_decode`: Base64 decode a
-- `url_encode`: URL encode
-- `url_decode`: URL decode
+- `base64_encode` / `base64_decode`: Base64 encode/decode
+- `url_encode` / `url_decode`: URL encode or decode
 - `timestamp_to_mst`: Unix timetamp mills to MST timestamp
 - `mst_to_timestamp`: MST timestamp to Unix timetamp mills
 
@@ -52,12 +49,20 @@ server {
     listen 80;
     server_name your-domain.com;
 
-    location /tools/ {
+    location /tools {
         proxy_pass http://localhost:5000/;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+
+        # 重写子路径
+        rewrite ^/tools(/.*)?$ $1 break;
+    }
+
+    # 静态文件处理
+    location /tools/static {
+        proxy_pass http://localhost:5000/static;
     }
 }
 ```
@@ -71,19 +76,40 @@ sudo systemctl reload nginx
 
 ### WordPress 集成
 
-1. 在 WordPress 页面编辑器中，添加"自定义 HTML"区块。
+1. 在 WordPress 仪表板中，创建新页面并设置其固定链接为 `/tools`。
 
-2. 将以下代码粘贴到区块中：
+2. 切换到文本编辑器模式，将以下代码添加到页面内容中：
 ```html
-<iframe src="/tools/" 
-        width="100%" 
-        height="800px" 
-        frameborder="0" 
-        style="border: none; width: 100%; height: 800px;">
-</iframe>
+<div class="tools-container" style="width: 100%; height: 800px; overflow: hidden;">
+    <iframe 
+        src="/tools" 
+        style="width: 100%; height: 100%; border: none; margin: 0; padding: 0; overflow: hidden;" 
+        frameborder="0"
+        allowtransparency="true"
+    ></iframe>
+</div>
+<style>
+    /* 移除 WordPress 主题可能添加的内边距 */
+    .entry-content {
+        padding: 0 !important;
+        margin: 0 !important;
+        max-width: none !important;
+    }
+    /* 确保工具占据完整宽度 */
+    .tools-container {
+        margin: -20px !important;  /* 抵消主题可能的边距 */
+        width: calc(100% + 40px) !important;
+    }
+</style>
 ```
 
-3. 发布页面后，工具将作为内嵌页面显示在您的 WordPress 网站中。
+3. 发布页面后，工具将以全宽度显示在 `/tools` 页面上，并自动适应 WordPress 主题样式。
+
+4. 如果页面显示 404 错误，请检查：
+   - WordPress 固定链接设置是否正确
+   - Nginx 配置文件中的 location 块是否正确
+   - Nginx 重写规则是否正确应用
+   - WordPress .htaccess 文件是否有冲突的重写规则
 
 ---
 
