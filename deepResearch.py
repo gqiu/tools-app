@@ -87,6 +87,8 @@ class DeepResearchAPI:
         start=False
         try:
             for event in client.events():
+                if event.event == "progress":
+                    print(f"Progress: {event.event}, Data: {event.data}")
                 if event.event == "progress" and event.data == '{"step":"final-report","status":"start"})}':
                     start = True
                     continue
@@ -97,6 +99,8 @@ class DeepResearchAPI:
                         results.append(data['text'])
         finally:
             response.close()
+        print("Final results received.")
+        print("Final results size:", len(results))
         return "".join(results)
 
 def example_callback(event_type: str, data: Dict):
