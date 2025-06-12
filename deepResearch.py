@@ -30,10 +30,10 @@ class DeepResearchAPI:
               thinking_model: str,
               task_model: str,
               search_provider: str,
-              language: Optional[str] = None,
-              max_result: Optional[int] = None,
-              enable_citation_image: Optional[bool] = None,
-              enable_references: Optional[bool] = None,
+              language: Optional[str] = "zh-cn",
+              max_result: Optional[int] = 5,
+              enable_citation_image: Optional[bool] = True,
+              enable_references: Optional[bool] = True,
               callback=None):
         """
         Perform a deep search with streaming response handling
@@ -87,8 +87,6 @@ class DeepResearchAPI:
         start=False
         try:
             for event in client.events():
-                print(f"==Received event: {event.event}")
-                print(f"==Data: {event.data}")
                 if event.event == "progress" and event.data == '{"step":"final-report","status":"start"})}':
                     start = True
                     continue
@@ -97,8 +95,6 @@ class DeepResearchAPI:
                         data = event.data[:-2] # Remove trailing '})'
                         data = json.loads(data)
                         results.append(data['text'])
-            final_result = "".join(results)
-            print(f"Final Result: {final_result}")
         finally:
             response.close()
         return "".join(results)
@@ -118,7 +114,7 @@ def example_usage():
     
     # Perform search with callback
     api.search(
-        query="eBay最新财报分析，关注公司利润，市场反应，行业趋势，政策影响，风险分析，用于股票中短期投资分析。有图表更好。",
+        query="eBay最新财报分析，关注公司利润，市场反应，行业趋势，政策影响，风险分析，用于股票中短期投资分析，数据可以用表格展示。",
         provider="google",
         thinking_model="gemini-2.0-flash-thinking-exp",
         task_model="gemini-2.0-flash-exp",
