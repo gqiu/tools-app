@@ -6,7 +6,7 @@ import time
 from deepResearch import DeepResearchAPI
 
 # Initialize DeepResearch API client
-deep_research_api = DeepResearchAPI(base_url="https://deep-search.qiulanfang.uk")
+deep_research_api = DeepResearchAPI(base_url="https://deep-research.qiulanfang.uk")
 
 app = Flask(__name__)
 CORS(app)
