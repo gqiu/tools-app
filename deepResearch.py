@@ -101,7 +101,20 @@ class DeepResearchAPI:
             response.close()
         print("Final results received.")
         print("Final results size:", len(results))
-        return "".join(results)
+        final_result = ''.join(results)
+        if final_result != '':
+           final_result.strip()
+           # remove <final-report> and </final-report>  
+           final_result = final_result.replace('<final-report>', '').replace('</final-report>', '') 
+        final_result.strip()
+        return final_result
+
+def format_final_result(result: str) -> str:
+    if result != '':
+       result=result.strip()
+      # remove <final-report> and </final-report>  
+       result = result.replace('<final-report>', '').replace('</final-report>', '') 
+    return result.strip()
 
 def example_callback(event_type: str, data: Dict):
     """Example callback function to handle SSE events"""
@@ -131,4 +144,7 @@ def example_usage():
     )
 
 if __name__ == "__main__":
-    example_usage()
+   final_str="<final-report>\n📈# eBay投资价值。\n</final-report>\n\n"
+   print(format_final_result(final_str))
+   pass
+   # example_usage()
