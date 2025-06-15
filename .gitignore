@@ -1,1 +1,24 @@
-__pycache__
+# Environment variables
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual Environment
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+
+# Generated images
+*.png
+*.jpg
+*.jpeg
+
+# Logs
+*.log

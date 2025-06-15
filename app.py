@@ -13,19 +13,10 @@ from google.genai import types
 from PIL import Image
 from io import BytesIO
 import base64
-
-# Load environment variables
 load_dotenv()
 
-    # Configure Gemini
-print(os.environ)
 GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
-# GOOGLE_API_KEY = 'AIzaSyCUZpjgxrZqV5uAa5e5EIM2WNpiX9sKdFE'
-# GOOGLE_GEMINI_BASE_URL = os.getenv('GOOGLE_GEMINI_BASE_URL', 'https://generativelanguage.googleapis.com')
-# os.environ['GOOGLE_API_BASE_URL'] = GOOGLE_GEMINI_BASE_URL
-# print("Google Gemini API configured with base URL:", GOOGLE_GEMINI_BASE_URL)
-print("Key:", GOOGLE_API_KEY)
-
+client = genai.Client(api_key=GOOGLE_API_KEY)
 # Configure R2
 r2 = boto3.client(
     's3',
@@ -134,14 +125,15 @@ def mst_to_timestamp():
         return jsonify({'result': 'Invalid datetime format (Use: YYYY-MM-DD HH:MM:SS)'})
 
 
-def reupload(image_bytes, content_type='image/png'):
+def uploadToR2(image_bytes, content_type='image/png'):
     """
     Upload image bytes to R2 storage and return the public URL
     """
     try:
         # Generate unique filename
         timestamp = int(time.time())
-        filename = f"generated_{timestamp}.png"
+        uuid = os.urandom(8).hex()  # Generate a random 8-byte hex string
+        filename = f"{uuid}_{timestamp}.png"
         
         # Upload to R2
         r2.put_object(
@@ -166,12 +158,12 @@ def test_reupload():
         test_image_bytes = bytes.fromhex('89504e470d0a1a0a0000000d494844520000000100000001080600000001f15c4800000009704859730000000ec300000ec301c76fa864000000134944415478da636460606000000002000001200001f3ff6e4b0000000049454e44ae426082')
         
         # Test uploading with default content type
-        url1 = reupload(test_image_bytes)
+        url1 = uploadToR2(test_image_bytes)
         if not url1 or not url1.startswith(os.getenv('R2_PUBLIC_URL', '')):
             raise Exception('Default content type test failed')
             
         # Test uploading with custom content type
-        url2 = reupload(test_image_bytes, 'image/jpeg')
+        url2 = uploadToR2(test_image_bytes, 'image/jpeg')
         if not url2 or not url2.startswith(os.getenv('R2_PUBLIC_URL', '')):
             raise Exception('Custom content type test failed')
             
@@ -189,17 +181,33 @@ def generate_image():
 
         print("Prompt:", prompt)
         # Initialize the Gemini client
-        client = genai.Client(api_key=GOOGLE_API_KEY)
+        inline_data = call_gemini(prompt)
+        if not inline_data or not inline_data.data:
+            return jsonify({'error': 'Failed to generate image'}), 500
+        # Upload the generated image to R2
+        image_url = uploadToR2(BytesIO(inline_data.data), content_type='image/png')
+        if not image_url:
+            return jsonify({'error': 'Failed to upload image to R2'}), 500
+        return jsonify({'image_url': image_url})
+            
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
-        contents = ('Hi, can you create a 3d rendered image of a pig '
-                    'with wings and a top hat flying over a happy '
-                    'futuristic scifi city with lots of greenery?')
 
+def call_gemini(prompt, model='gemini-2.0-flash-preview-image-generation'):
+    """
+    Call the Gemini API with the given prompt and model.
+    Returns the response text.
+    """
+    try:
+        contents = (prompt)
         response = client.models.generate_content(
-            model="gemini-2.0-flash-preview-image-generation",
+            model=model,
             contents=contents,
             config=types.GenerateContentConfig(
-                response_modalities=['TEXT', 'IMAGE']
+                response_modalities=['TEXT', 'IMAGE'],
+                temperature=0,
+                top_p=0.80
             )
         )
 
@@ -207,23 +215,9 @@ def generate_image():
             if part.text is not None:
                 print(part.text)
             elif part.inline_data is not None:
-                image = Image.open(BytesIO((part.inline_data.data)))
-                image.save('gemini-native-image.png')
-                image.show()
-        
-        # if not image_response.parts or not hasattr(image_response.parts[0], 'image_bytes'):
-        #     return jsonify({'error': 'Failed to generate image'}), 500
-
-        # # Get image bytes and upload using reupload function
-        # image_bytes = image_response.parts[0].image_bytes
-        # try:
-        #     url = reupload(image_bytes)
-        #     return jsonify({'url': url})
-        # except Exception as e:
-        #     return jsonify({'error': str(e)}), 500
-            
+                return part.inline_data
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        raise Exception(f'Gemini API call failed: {str(e)}')
 
 @app.route('/api/deep_research', methods=['POST'])
 def deep_research():
@@ -263,3 +257,10 @@ def deep_research():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
+    # promt='generate a 1024x500 PNG image for your blog post cover about company financial statements. The image will feature a clean,' \
+    # ' modern design incorporating elements like charts, graphs, and possibly a balance sheet or income statement snippet in a visually appealing and professional manner.'
+    # inline_data=call_gemini(promt)
+    # uploadToR2(BytesIO((inline_data.data)), content_type='image/png')
+    # image = Image.open(BytesIO((inline_data.data)))
+    # image.save('gemini-native-image.png')
+    # image.show()
