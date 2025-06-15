@@ -10,7 +10,6 @@ from deepResearch import DeepResearchAPI
 
 from google import genai
 from google.genai import types
-from PIL import Image
 from io import BytesIO
 import base64
 load_dotenv()
