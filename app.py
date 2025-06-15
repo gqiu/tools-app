@@ -3,7 +3,37 @@ from flask_cors import CORS
 import base64
 import urllib.parse
 import time
+import os
+import boto3
+from dotenv import load_dotenv
 from deepResearch import DeepResearchAPI
+
+from google import genai
+from google.genai import types
+from PIL import Image
+from io import BytesIO
+import base64
+
+# Load environment variables
+load_dotenv()
+
+    # Configure Gemini
+print(os.environ)
+GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
+# GOOGLE_API_KEY = 'AIzaSyCUZpjgxrZqV5uAa5e5EIM2WNpiX9sKdFE'
+# GOOGLE_GEMINI_BASE_URL = os.getenv('GOOGLE_GEMINI_BASE_URL', 'https://generativelanguage.googleapis.com')
+# os.environ['GOOGLE_API_BASE_URL'] = GOOGLE_GEMINI_BASE_URL
+# print("Google Gemini API configured with base URL:", GOOGLE_GEMINI_BASE_URL)
+print("Key:", GOOGLE_API_KEY)
+
+# Configure R2
+r2 = boto3.client(
+    's3',
+    endpoint_url=os.getenv('R2_ENDPOINT_URL'),
+    aws_access_key_id=os.getenv('R2_ACCESS_KEY_ID'),
+    aws_secret_access_key=os.getenv('R2_SECRET_ACCESS_KEY')
+)
+R2_BUCKET = os.getenv('R2_BUCKET')
 
 # Initialize DeepResearch API client
 deep_research_api = DeepResearchAPI(base_url="https://deep-research.qiulanfang.uk")
@@ -102,6 +132,98 @@ def mst_to_timestamp():
         return jsonify({'result': result})
     except:
         return jsonify({'result': 'Invalid datetime format (Use: YYYY-MM-DD HH:MM:SS)'})
+
+
+def reupload(image_bytes, content_type='image/png'):
+    """
+    Upload image bytes to R2 storage and return the public URL
+    """
+    try:
+        # Generate unique filename
+        timestamp = int(time.time())
+        filename = f"generated_{timestamp}.png"
+        
+        # Upload to R2
+        r2.put_object(
+            Bucket=R2_BUCKET,
+            Key=filename,
+            Body=image_bytes,
+            ContentType=content_type
+        )
+        
+        # Get public URL
+        return f"{os.getenv('R2_PUBLIC_URL')}/{filename}"
+    except Exception as e:
+        raise Exception(f'Failed to upload image: {str(e)}')
+
+def test_reupload():
+    """
+    Test function for reupload functionality
+    Returns True if test passes, raises Exception if test fails
+    """
+    try:
+        # Create a small test image (1x1 pixel black PNG)
+        test_image_bytes = bytes.fromhex('89504e470d0a1a0a0000000d494844520000000100000001080600000001f15c4800000009704859730000000ec300000ec301c76fa864000000134944415478da636460606000000002000001200001f3ff6e4b0000000049454e44ae426082')
+        
+        # Test uploading with default content type
+        url1 = reupload(test_image_bytes)
+        if not url1 or not url1.startswith(os.getenv('R2_PUBLIC_URL', '')):
+            raise Exception('Default content type test failed')
+            
+        # Test uploading with custom content type
+        url2 = reupload(test_image_bytes, 'image/jpeg')
+        if not url2 or not url2.startswith(os.getenv('R2_PUBLIC_URL', '')):
+            raise Exception('Custom content type test failed')
+            
+        return True
+        
+    except Exception as e:
+        raise Exception(f'Reupload test failed: {str(e)}')
+
+@app.route('/api/generate_image', methods=['POST'])
+def generate_image():
+    try:
+        prompt = request.json.get('prompt')
+        if not prompt:
+            return jsonify({'error': 'Prompt is required'}), 400
+
+        print("Prompt:", prompt)
+        # Initialize the Gemini client
+        client = genai.Client(api_key=GOOGLE_API_KEY)
+
+        contents = ('Hi, can you create a 3d rendered image of a pig '
+                    'with wings and a top hat flying over a happy '
+                    'futuristic scifi city with lots of greenery?')
+
+        response = client.models.generate_content(
+            model="gemini-2.0-flash-preview-image-generation",
+            contents=contents,
+            config=types.GenerateContentConfig(
+                response_modalities=['TEXT', 'IMAGE']
+            )
+        )
+
+        for part in response.candidates[0].content.parts:
+            if part.text is not None:
+                print(part.text)
+            elif part.inline_data is not None:
+                image = Image.open(BytesIO((part.inline_data.data)))
+                image.save('gemini-native-image.png')
+                image.show()
+        
+        # if not image_response.parts or not hasattr(image_response.parts[0], 'image_bytes'):
+        #     return jsonify({'error': 'Failed to generate image'}), 500
+
+        # # Get image bytes and upload using reupload function
+        # image_bytes = image_response.parts[0].image_bytes
+        # try:
+        #     url = reupload(image_bytes)
+        #     return jsonify({'url': url})
+        # except Exception as e:
+        #     return jsonify({'error': str(e)}), 500
+            
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/deep_research', methods=['POST'])
 def deep_research():

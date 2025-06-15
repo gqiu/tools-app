@@ -4,3 +4,8 @@ gunicorn==20.1.0
 Werkzeug==2.0.1
 requests>=2.31.0
 sseclient-py>=1.7.2
+google-generativeai>=0.3.2
+boto3>=1.34.0
+python-dotenv>=1.0.0
+google-genai
+websockets>=13.0,<15.1.0
